@@ -33,10 +33,13 @@ def get_vpc_details(account_id, region):
                     vpc_name = tag['Value']
                     break
             
+            vpc_arn = ec2_client.describe_vpcs(VpcIds=[vpc_id])['Vpcs'][0]['VpcArn']
+
             vpcs.append({
                 'Account ID': account_id,
                 'VPC Name': vpc_name,
                 'VPC ID': vpc_id,
+                'VPC ARN': vpc_arn,
                 'CIDR Block': vpc['CidrBlock'],
                 'Region': region,
                 'State': vpc['State']
