@@ -33,6 +33,9 @@ def get_vpc_details(account_id, region):
                     vpc_name = tag['Value']
                     break
             
+            # Extracting tags
+            tags = {tag['Key']: tag['Value'] for tag in vpc.get('Tags', [])}
+
             # Constructing VPC ARN
             vpc_arn = f"arn:aws:ec2:{region}:{account_id}:vpc/{vpc_id}"
 
@@ -43,7 +46,8 @@ def get_vpc_details(account_id, region):
                 'VPC ARN': vpc_arn,
                 'CIDR Block': vpc['CidrBlock'],
                 'Region': region,
-                'State': vpc['State']
+                'State': vpc['State'],
+                'Tags': tags  # Include tags in the data
             })
     except Exception as e:
         print(f"Error listing VPCs for account {account_id} in region {region}: {e}")
@@ -61,6 +65,10 @@ def export_details_to_csv(data, filename='vpc_details.csv'):
     if not data:
         print("No resource details found.")
         return
+
+    # Flatten tags dictionary into separate columns
+    for item in data:
+        item['Tags'] = ', '.join([f"{key}: {value}" for key, value in item['Tags'].items()])
 
     with open(filename, 'w', newline='') as csvfile:
         fieldnames = data[0].keys()
