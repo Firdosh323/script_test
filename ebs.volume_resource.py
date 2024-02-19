@@ -43,7 +43,8 @@ def get_ebs_details(account_id, region):
             'Volume ID': volume.id,
             'Size': volume.size,
             'Availability Zone': volume.availability_zone,
-            'Tags': volume.tags or 'N/A'
+            'Tags': volume.tags or 'N/A',
+            'ARN': volume.arn  # Include ARN
         })
 
     return volume_details
