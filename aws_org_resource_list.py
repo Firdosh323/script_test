@@ -22,11 +22,15 @@ def get_account_tags(account_id):
     """Retrieves tags for a specific AWS account"""
     try:
         client = boto3.client('resourcegroupstaggingapi')
-        response = client.list_tags_for_resource(ResourceARN=f"arn:aws:organizations:::{account_id}")
-        return response['TagMappings'][0]['Tags']
+        tags_response = client.list_tags_for_resource(ResourceARN=f"arn:aws:organizations:::{account_id}")
+        if 'ResourceTagMappingList' in tags_response:
+            tags = tags_response['ResourceTagMappingList'][0].get('Tags', [])
+        else:
+            tags = []
     except Exception as e:
         print(f"An error occurred retrieving tags for account {account_id}: {e}")
-        return []
+        tags = []
+    return tags
 
 def export_accounts_to_csv(accounts, filename='organization_accounts.csv'):
     """Exports account details to a CSV file"""
