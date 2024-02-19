@@ -1,67 +1,43 @@
 import boto3
 import csv
+import datetime
 
-def get_organization_accounts():
-    """Retrieves a list of all AWS accounts within the organization"""
+def get_account_details():
+    """Retrieves details of all AWS accounts within the organization."""
     org_client = boto3.client('organizations')
+    tagging_client = boto3.client('resourcegroupstaggingapi')
+
     accounts = []
+    paginator = org_client.get_paginator('list_accounts')
+    for page in paginator.paginate():
+        for account in page['Accounts']:
+            try:
+                tags_response = tagging_client.get_resources(
+                    ResourceARNList=[account['Arn']]
+                )
+                tags = tags_response['ResourceTagMappingList'][0].get('Tags', [])
+            except Exception:
+                tags = []
 
-    try:
-        response = org_client.list_accounts()
-        accounts.extend(response.get('Accounts', []))
-
-        while 'NextToken' in response:
-            response = org_client.list_accounts(NextToken=response['NextToken'])
-            accounts.extend(response.get('Accounts', []))
-    except Exception as e:
-        print(f"An error occurred retrieving account details: {e}")
+            accounts.append({
+                'Account ID': account['Id'],
+                'Name': account.get('Name', 'No Alias'),
+                'ARN': account['Arn'],
+                'Email': account['Email'],
+                'Created Date': account['JoinedTimestamp'].strftime('%Y-%m-%d'),
+                'Tags': tags
+            })
 
     return accounts
 
-def get_account_tags(account_id):
-    """Retrieves tags for a specific AWS account"""
-    try:
-        client = boto3.client('resourcegroupstaggingapi')
-        tags_response = client.list_tags_for_resource(ResourceARN=f"arn:aws:organizations:::{account_id}")
-        if 'ResourceTagMappingList' in tags_response:
-            tags = tags_response['ResourceTagMappingList'][0].get('Tags', [])
-        else:
-            tags = []
-    except Exception as e:
-        print(f"An error occurred retrieving tags for account {account_id}: {e}")
-        tags = []
-    return tags
-
-def export_accounts_to_csv(accounts, filename='organization_accounts.csv'):
-    """Exports account details to a CSV file"""
-    if not accounts:
-        print("No account details found.")
-        return
-
+def export_details_to_csv(data, filename='core_resource_details.csv'):
+    """Exports data to a CSV file."""
     with open(filename, 'w', newline='') as csvfile:
-        fieldnames = ['Account ID', 'ARN', 'Email', 'Name', 'Status', 'Joined Timestamp', 'Tags']
+        fieldnames = ['Account ID', 'Name', 'ARN', 'Email', 'Created Date', 'Tags']  # Include 'ARN' field
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         writer.writeheader()
-
-        for account in accounts:
-            account_id = account['Id']
-            arn = account['Arn']
-            email = account['Email']
-            name = account.get('Name', '')
-            status = account['Status']
-            joined_timestamp = account['JoinedTimestamp'].strftime("%Y-%m-%d %H:%M:%S")
-            tags = get_account_tags(account_id)
-            
-            writer.writerow({
-                'Account ID': account_id,
-                'ARN': arn,
-                'Email': email,
-                'Name': name,
-                'Status': status,
-                'Joined Timestamp': joined_timestamp,
-                'Tags': tags  # Write the list of tag dictionaries directly
-            })
+        writer.writerows(data)
 
 if __name__ == '__main__':
-    organization_accounts = get_organization_accounts()
-    export_accounts_to_csv(organization_accounts)
+    all_account_details = get_account_details()
+    export_details_to_csv(all_account_details)
