@@ -23,7 +23,7 @@ def get_account_tags(account_id):
     try:
         client = boto3.client('resourcegroupstaggingapi')
         response = client.list_tags_for_resource(ResourceARN=f"arn:aws:organizations:::{account_id}")
-        return response['TagList']
+        return response['TagMappings'][0]['Tags']
     except Exception as e:
         print(f"An error occurred retrieving tags for account {account_id}: {e}")
         return []
