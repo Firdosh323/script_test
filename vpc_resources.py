@@ -33,7 +33,8 @@ def get_vpc_details(account_id, region):
                     vpc_name = tag['Value']
                     break
             
-            vpc_arn = ec2_client.describe_vpcs(VpcIds=[vpc_id])['Vpcs'][0]['VpcArn']
+            # Constructing VPC ARN
+            vpc_arn = f"arn:aws:ec2:{region}:{account_id}:vpc/{vpc_id}"
 
             vpcs.append({
                 'Account ID': account_id,
