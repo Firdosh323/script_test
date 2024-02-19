@@ -2,67 +2,66 @@ import boto3
 import csv
 
 def get_organization_accounts():
-    """
-    Retrieve AWS organization account details.
-    """
-    # Initialize the AWS Organizations client
+    """Retrieves a list of all AWS accounts within the organization"""
     org_client = boto3.client('organizations')
+    accounts = []
 
-    # Retrieve a list of accounts in the organization
-    response = org_client.list_accounts()
+    try:
+        response = org_client.list_accounts()
+        accounts.extend(response.get('Accounts', []))
 
-    return response['Accounts']
+        while 'NextToken' in response:
+            response = org_client.list_accounts(NextToken=response['NextToken'])
+            accounts.extend(response.get('Accounts', []))
+    except Exception as e:
+        print(f"An error occurred retrieving account details: {e}")
 
-def extract_account_details(account):
-    """
-    Extract relevant details from an AWS account object.
-    """
-    account_id = account['Id']
-    arn = account['Arn']
-    email = account['Email']
-    name = account['Name']
-    status = account['Status']
-    joined_timestamp = str(account['JoinedTimestamp'])
-    tags = get_account_tags(account_id)
-    
-    return [account_id, arn, email, name, status, joined_timestamp, tags]
+    return accounts
 
 def get_account_tags(account_id):
-    """
-    Retrieve tags associated with an AWS account.
-    """
-    # Initialize the AWS Resource Groups Tagging client
-    tagging_client = boto3.client('resourcegroupstaggingapi')
+    """Retrieves tags for a specific AWS account"""
+    try:
+        client = boto3.client('resourcegroupstaggingapi')
+        tags_response = client.list_tags_for_resource(ResourceARN=f"arn:aws:organizations:::{account_id}")
+        if 'ResourceTagMappingList' in tags_response:
+            tags = tags_response['ResourceTagMappingList'][0].get('Tags', [])
+        else:
+            tags = []
+    except Exception as e:
+        print(f"An error occurred retrieving tags for account {account_id}: {e}")
+        tags = []
+    return tags
 
-    # Retrieve tags for the specified resource
-    response = tagging_client.get_resources(
-        ResourceARNList=[f'arn:aws:organizations:::{account_id}']
-    )
-    
-    tags = response['ResourceTagMappingList'][0]['Tags'] if response['ResourceTagMappingList'] else []
-    
-    # Convert tags to a dictionary format for easy handling
-    tags_dict = {tag['Key']: tag['Value'] for tag in tags}
-    
-    return tags_dict
+def export_accounts_to_csv(accounts, filename='organization_accounts.csv'):
+    """Exports account details to a CSV file"""
+    if not accounts:
+        print("No account details found.")
+        return
 
-def export_to_csv(accounts):
-    """
-    Export account details to a CSV file.
-    """
-    with open('aws_organization_accounts.csv', 'w', newline='') as csvfile:
+    with open(filename, 'w', newline='') as csvfile:
         fieldnames = ['Account ID', 'ARN', 'Email', 'Name', 'Status', 'Joined Timestamp', 'Tags']
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         writer.writeheader()
-        
+
         for account in accounts:
-            account_details = extract_account_details(account)
-            writer.writerow({fieldnames[i]: account_details[i] for i in range(len(fieldnames))})
+            account_id = account['Id']
+            arn = account['Arn']
+            email = account['Email']
+            name = account.get('Name', '')
+            status = account['Status']
+            joined_timestamp = account['JoinedTimestamp'].strftime("%Y-%m-%d %H:%M:%S")
+            tags = get_account_tags(account_id)
+            
+            writer.writerow({
+                'Account ID': account_id,
+                'ARN': arn,
+                'Email': email,
+                'Name': name,
+                'Status': status,
+                'Joined Timestamp': joined_timestamp,
+                'Tags': tags  # Write the list of tag dictionaries directly
+            })
 
-def main():
-    accounts = get_organization_accounts()
-    export_to_csv(accounts)
-    print("AWS organization account details exported successfully to 'aws_organization_accounts.csv'.")
-
-if __name__ == "__main__":
-    main()
+if __name__ == '__main__':
+    organization_accounts = get_organization_accounts()
+    export_accounts_to_csv(organization_accounts)
