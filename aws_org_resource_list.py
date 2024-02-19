@@ -18,6 +18,16 @@ def get_organization_accounts():
 
     return accounts
 
+def get_account_tags(account_id):
+    """Retrieves tags for a specific AWS account"""
+    try:
+        client = boto3.client('resourcegroupstaggingapi')
+        response = client.list_tags_for_resource(ResourceARN=f"arn:aws:organizations:::{account_id}")
+        return response['TagList']
+    except Exception as e:
+        print(f"An error occurred retrieving tags for account {account_id}: {e}")
+        return []
+
 def export_accounts_to_csv(accounts, filename='organization_accounts.csv'):
     """Exports account details to a CSV file"""
     if not accounts:
@@ -36,7 +46,8 @@ def export_accounts_to_csv(accounts, filename='organization_accounts.csv'):
             name = account.get('Name', '')
             status = account['Status']
             joined_timestamp = account['JoinedTimestamp'].strftime("%Y-%m-%d %H:%M:%S")
-            tags = ', '.join([f"{tag['Key']}: {tag['Value']}" for tag in account.get('Tags', [])])
+            tags = get_account_tags(account_id)
+            tags_str = ', '.join([f"{tag['Key']}: {tag['Value']}" for tag in tags])
 
             writer.writerow({
                 'Account ID': account_id,
@@ -45,7 +56,7 @@ def export_accounts_to_csv(accounts, filename='organization_accounts.csv'):
                 'Name': name,
                 'Status': status,
                 'Joined Timestamp': joined_timestamp,
-                'Tags': tags
+                'Tags': tags_str
             })
 
 if __name__ == '__main__':
