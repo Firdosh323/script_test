@@ -1,0 +1,66 @@
+import boto3
+import csv
+import datetime
+
+def get_account_ids():
+    """Retrieves all the account IDs in the organization"""
+    org_client = boto3.client('organizations')
+    accounts = []
+    try:
+        response = org_client.list_accounts()
+        for account in response['Accounts']:
+            accounts.append(account['Id'])
+    except Exception as e:
+        print(f"Error listing accounts: {e}")
+    return accounts
+
+def get_bucket_details(account_id):
+    """Fetches S3 bucket details for a given account"""
+    session = boto3.Session(profile_name=None) # Adjust if using profiles
+    s3_client = session.client('s3') # Default region in boto3 config
+    buckets = []
+
+    try:
+        response = s3_client.list_buckets()
+        for bucket in response['Buckets']:
+            try:
+                region = s3_client.get_bucket_location(Bucket=bucket['Name']).get('LocationConstraint', 'N/A')
+                tags = s3_client.get_bucket_tagging(Bucket=bucket['Name']).get('TagSet', [])
+                tags_dict = {tag['Key']: tag['Value'] for tag in tags} # Create a tag dictionary
+            except Exception as e:
+                print(f"Error getting region or tags for bucket {bucket['Name']}: {e}")
+                region = 'N/A'
+                tags_dict = {}
+
+            buckets.append({
+                'Account ID': account_id,
+                'Bucket Name': bucket['Name'],
+                'Bucket Region': region,
+                'Resource ID (ARN)': f'arn:aws:s3:::{bucket["Name"]}',
+                'Creation Date': bucket['CreationDate'].strftime('%Y-%m-%d'),
+                'Tags': tags_dict # Store tags as a dictionary 
+            })
+    except Exception as e:
+        print(f"Error listing buckets for account {account_id}: {e}")
+
+    return buckets
+
+def export_details_to_csv(data, filename='core_resource_details.csv'):
+    """Exports data to a CSV file"""
+    if not data:
+        print("No resource details found.")
+        return
+
+    with open(filename, 'w', newline='') as csvfile:
+        fieldnames = data[0].keys()
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(data)
+
+if __name__ == '__main__':
+    all_resource_details = []
+    account_ids = get_account_ids() # Get all account IDs in the organization
+    for account_id in account_ids:
+        all_resource_details.extend(get_bucket_details(account_id))
+
+    export_details_to_csv(all_resource_details)
