@@ -62,7 +62,26 @@ def get_bucket_details(account_id):
 
     return buckets
 
+def export_details_to_csv(data, filename='bucket_details.csv'):
+    """Exports data to a CSV file"""
+    if not data:
+        print("No resource details found.")
+        return
+
+    try:
+        with open(filename, 'w', newline='') as csvfile:
+            fieldnames = data[0].keys()
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(data)
+        print(f"Data exported to {filename} successfully.")
+    except Exception as e:
+        print(f"Error exporting data to CSV: {e}")
+
 if __name__ == '__main__':
+    all_bucket_details = []
     account_ids = get_account_ids() # Get all account IDs in the organization
     for account_id in account_ids:
-        get_bucket_details(account_id)
+        all_bucket_details.extend(get_bucket_details(account_id))
+
+    export_details_to_csv(all_bucket_details)
