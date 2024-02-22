@@ -22,14 +22,27 @@ def get_bucket_details(account_id):
 
     try:
         response = s3_client.list_buckets()
+        num_buckets = len(response['Buckets'])
+        print(f"Number of buckets for account {account_id}: {num_buckets}")
+        
+        regions = set()
         for bucket in response['Buckets']:
             try:
+                print(f"Processing bucket: {bucket['Name']}")
                 region = s3_client.get_bucket_location(Bucket=bucket['Name']).get('LocationConstraint', 'N/A')
+                if region != 'N/A':
+                    regions.add(region)
+            except Exception as e:
+                print(f"Error getting region for bucket {bucket['Name']}: {e}")
+            
+            try:
                 tags = s3_client.get_bucket_tagging(Bucket=bucket['Name']).get('TagSet', [])
                 tags_dict = {tag['Key']: tag['Value'] for tag in tags} # Create a tag dictionary
+            except s3_client.exceptions.NoSuchTagSet:
+                print(f"No tags found for bucket {bucket['Name']}")
+                tags_dict = {}
             except Exception as e:
-                print(f"Error getting region or tags for bucket {bucket['Name']}: {e}")
-                region = 'N/A'
+                print(f"Error getting tags for bucket {bucket['Name']}: {e}")
                 tags_dict = {}
 
             buckets.append({
@@ -40,27 +53,16 @@ def get_bucket_details(account_id):
                 'Creation Date': bucket['CreationDate'].strftime('%Y-%m-%d'),
                 'Tags': tags_dict # Store tags as a dictionary 
             })
+
+        num_regions = len(regions)
+        print(f"Number of bucket regions for account {account_id}: {num_regions}")
+
     except Exception as e:
         print(f"Error listing buckets for account {account_id}: {e}")
 
     return buckets
 
-def export_details_to_csv(data, filename='core_resource_details.csv'):
-    """Exports data to a CSV file"""
-    if not data:
-        print("No resource details found.")
-        return
-
-    with open(filename, 'w', newline='') as csvfile:
-        fieldnames = data[0].keys()
-        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-        writer.writeheader()
-        writer.writerows(data)
-
 if __name__ == '__main__':
-    all_resource_details = []
     account_ids = get_account_ids() # Get all account IDs in the organization
     for account_id in account_ids:
-        all_resource_details.extend(get_bucket_details(account_id))
-
-    export_details_to_csv(all_resource_details)
+        get_bucket_details(account_id)
